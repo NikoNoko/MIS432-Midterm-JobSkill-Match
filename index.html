@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job-Skill Matcher · Knowledge Graph</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c;
+    --bg-elev: #1a1815;
+    --bg-card: #221f1b;
+    --border: #2e2a25;
+    --border-strong: #4a443c;
+    --ink: #f5f0e8;
+    --ink-dim: #a39d92;
+    --ink-faint: #6b665e;
+    --accent: #d4a574;
+    --accent-warm: #e87b3a;
+    --skill: #6fb3a0;
+    --job: #c97a5e;
+    --shared: #d4a574;
+    --link-dim: #2e2a25;
+    --link-active: #d4a574;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  header {
+    padding: 3rem 4rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 2rem;
+  }
+  .title-block h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 500;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
+  .title-block h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .title-block .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-top: 1rem;
+  }
+  .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-align: right;
+    line-height: 1.8;
+  }
+  .meta span { color: var(--accent); }
+
+  .formula {
+    padding: 1.25rem 4rem;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-dim);
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .formula .eq { color: var(--ink); }
+  .formula .label { color: var(--accent); }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0;
+    min-height: calc(100vh - 280px);
+  }
+
+  .graph-pane {
+    position: relative;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+  #graph { width: 100%; height: 100%; display: block; }
+  .graph-hint {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    pointer-events: none;
+  }
+  .graph-legend {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: rgba(15, 14, 12, 0.85);
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .legend-row { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-line { width: 18px; height: 2px; }
+
+  .side {
+    background: var(--bg-elev);
+    overflow-y: auto;
+    max-height: calc(100vh - 280px);
+  }
+
+  section {
+    padding: 1.5rem 1.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  section h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  section h2 .count {
+    color: var(--accent);
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .ctrl-btn {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--ink-dim);
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 2px;
+  }
+  .ctrl-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .ctrl-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  .selected-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 28px;
+  }
+  .skill-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    background: var(--bg-card);
+    color: var(--accent);
+    padding: 4px 8px;
+    border-radius: 2px;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+  }
+  .skill-tag:hover { background: var(--accent); color: var(--bg); }
+  .empty-state {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  .job-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 3px;
+  }
+  .job-card:hover { border-color: var(--accent); }
+  .job-card.top { border-left: 2px solid var(--accent); }
+  .job-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .job-rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-right: 8px;
+  }
+  .job-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .job-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .job-explain {
+    font-size: 12px;
+    color: var(--ink-dim);
+    line-height: 1.55;
+    margin-top: 4px;
+  }
+  .job-shared {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--shared);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .job-bar {
+    height: 2px;
+    background: var(--border);
+    margin-top: 8px;
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .job-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-warm), var(--accent));
+    transition: width 0.4s ease;
+  }
+
+  .rec-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+  .rec-row:hover { border-color: var(--shared); background: var(--bg-card); }
+  .rec-skill {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .rec-unlock {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    margin-top: 3px;
+  }
+  .rec-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    white-space: nowrap;
+    margin-left: 12px;
+  }
+
+  footer {
+    padding: 2rem 4rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elev);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+
+  /* SVG node styles */
+  .node-skill { fill: var(--skill); stroke: var(--bg); stroke-width: 1.5; cursor: pointer; transition: r 0.2s; }
+  .node-skill.selected { fill: var(--accent); stroke: var(--accent-warm); stroke-width: 2; }
+  .node-skill.shared { fill: var(--shared); stroke: var(--accent-warm); stroke-width: 2; }
+  .node-job { fill: var(--job); stroke: var(--bg); stroke-width: 2; cursor: pointer; }
+  .node-job.highlight { fill: var(--accent-warm); stroke: var(--accent); stroke-width: 3; }
+  .node-label { fill: var(--ink); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; pointer-events: none; text-anchor: middle; }
+  .node-label.job { font-family: 'Fraunces', serif; font-size: 13px; font-weight: 500; fill: var(--ink); }
+  .node-label.dim { fill: var(--ink-faint); }
+  .link { stroke: var(--link-dim); stroke-width: 1; transition: stroke 0.2s, stroke-width 0.2s; }
+  .link.active { stroke: var(--link-active); stroke-width: 1.5; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .graph-pane { height: 60vh; border-right: none; border-bottom: 1px solid var(--border); }
+    .side { max-height: none; }
+    header { padding: 2rem 1.5rem 1rem; grid-template-columns: 1fr; }
+    .formula { padding: 1rem 1.5rem; }
+    footer { padding: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <div class="title-block">
+    <h1>The job–skill <em>knowledge graph</em></h1>
+    <div class="sub">A career matcher built on the EveryCure repurposing logic</div>
+  </div>
+  <div class="meta">
+    8 jobs · 26 skills<br>
+    <span id="edge-count">52</span> edges<br>
+    MIS 432 · Challenge A
+  </div>
+</header>
+
+<div class="formula">
+  <span class="label">score</span>
+  <span class="eq">= (your shared skills ÷ job's required skills) × demand confidence</span>
+  <span style="margin-left: auto; color: var(--ink-faint);">click a skill node to add it · drag to rearrange</span>
+</div>
+
+<main>
+  <div class="graph-pane">
+    <svg id="graph"></svg>
+    <div class="graph-legend">
+      <div class="legend-row"><span class="legend-dot" style="background: var(--job);"></span>Job</div>
+      <div class="legend-row"><span class="legend-dot" style="background: var(--skill);"></span>Skill</div>
+      <div class="legend-row"><span class="legend-dot" style="background: var(--accent);"></span>Your skill</div>
+      <div class="legend-row"><span class="legend-line" style="background: var(--link-active);"></span>Match edge</div>
+    </div>
+    <div class="graph-hint">drag nodes · click skills to select</div>
+  </div>
+
+  <aside class="side">
+    <section>
+      <h2>Your skills <span class="count" id="count-label">0</span></h2>
+      <div class="controls">
+        <button class="ctrl-btn" id="reset-btn">Clear</button>
+        <button class="ctrl-btn" id="demo-btn">Try demo</button>
+      </div>
+      <div class="selected-skills" id="selected-skills">
+        <span class="empty-state">click skill nodes in the graph →</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Ranked job matches</h2>
+      <div id="job-results"></div>
+    </section>
+
+    <section>
+      <h2>Learn next <span class="count">collab. filtering</span></h2>
+      <div id="skill-recs"></div>
+    </section>
+  </aside>
+</main>
+
+<footer>
+  Drug → disease becomes skill → job · same knowledge graph, different domain
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const skills = [
+  "Python","SQL","Excel","Tableau","R","Statistics","Machine Learning","Deep Learning",
+  "A/B Testing","Data Viz","Git","Cloud","Docker","JavaScript","React",
+  "Figma","User Research","Product Strategy","Stakeholder Comms","Roadmapping","Agile",
+  "Financial Modeling","Accounting","Marketing Analytics","SEO","Copywriting"
+];
+
+const jobs = [
+  { title: "Data Analyst", confidence: 0.92, requires: ["SQL","Excel","Tableau","Statistics","Data Viz","Stakeholder Comms"] },
+  { title: "Data Scientist", confidence: 0.88, requires: ["Python","SQL","Statistics","Machine Learning","R","Data Viz","A/B Testing"] },
+  { title: "ML Engineer", confidence: 0.90, requires: ["Python","Machine Learning","Deep Learning","Git","Cloud","Docker"] },
+  { title: "Product Manager", confidence: 0.85, requires: ["Product Strategy","Roadmapping","Stakeholder Comms","Agile","User Research","A/B Testing","SQL"] },
+  { title: "UX Designer", confidence: 0.78, requires: ["Figma","User Research","Data Viz","Stakeholder Comms"] },
+  { title: "Frontend Dev", confidence: 0.83, requires: ["JavaScript","React","Git","Figma","Cloud"] },
+  { title: "Financial Analyst", confidence: 0.80, requires: ["Excel","Financial Modeling","Accounting","Statistics","SQL","Stakeholder Comms"] },
+  { title: "Growth Marketer", confidence: 0.75, requires: ["Marketing Analytics","SEO","Copywriting","A/B Testing","SQL","Data Viz"] }
+];
+
+// Build graph data
+const nodes = [
+  ...jobs.map(j => ({ id: j.title, type: "job", confidence: j.confidence })),
+  ...skills.map(s => ({ id: s, type: "skill" }))
+];
+const links = [];
+jobs.forEach(j => j.requires.forEach(s => links.push({ source: j.title, target: s })));
+document.getElementById("edge-count").textContent = links.length;
+
+const userSkills = new Set();
+
+// SVG setup
+const svg = d3.select("#graph");
+const container = document.querySelector(".graph-pane");
+let width = container.clientWidth;
+let height = container.clientHeight;
+svg.attr("viewBox", [0, 0, width, height]);
+
+const g = svg.append("g");
+
+// Zoom
+svg.call(d3.zoom().scaleExtent([0.4, 3]).on("zoom", (e) => g.attr("transform", e.transform)));
+
+const link = g.append("g").attr("class", "links")
+  .selectAll("line").data(links).enter().append("line").attr("class", "link");
+
+const node = g.append("g").attr("class", "nodes")
+  .selectAll("g").data(nodes).enter().append("g");
+
+node.append("circle")
+  .attr("class", d => d.type === "job" ? "node-job" : "node-skill")
+  .attr("r", d => d.type === "job" ? 14 : 7)
+  .on("click", (event, d) => {
+    if (d.type === "skill") {
+      if (userSkills.has(d.id)) userSkills.delete(d.id);
+      else userSkills.add(d.id);
+      render();
+    }
+  });
+
+node.append("text")
+  .attr("class", d => d.type === "job" ? "node-label job" : "node-label dim")
+  .attr("dy", d => d.type === "job" ? 4 : -12)
+  .text(d => d.id);
+
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id).distance(d => 70).strength(0.5))
+  .force("charge", d3.forceManyBody().strength(-280))
+  .force("center", d3.forceCenter(width / 2, height / 2))
+  .force("collide", d3.forceCollide().radius(d => d.type === "job" ? 40 : 22))
+  .on("tick", ticked);
+
+function ticked() {
+  link
+    .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+  node.attr("transform", d => `translate(${d.x},${d.y})`);
+}
+
+node.call(d3.drag()
+  .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+  .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+  .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+// Resize
+window.addEventListener("resize", () => {
+  width = container.clientWidth;
+  height = container.clientHeight;
+  svg.attr("viewBox", [0, 0, width, height]);
+  simulation.force("center", d3.forceCenter(width / 2, height / 2)).alpha(0.3).restart();
+});
+
+// Scoring
+function scoreJob(job) {
+  const shared = job.requires.filter(r => userSkills.has(r));
+  const missing = job.requires.filter(r => !userSkills.has(r));
+  const ratio = shared.length / job.requires.length;
+  return { ...job, shared, missing, ratio, score: ratio * job.confidence };
+}
+
+function render() {
+  // Update graph node classes
+  node.select("circle.node-skill")
+    .classed("selected", d => userSkills.has(d.id));
+
+  const results = jobs.map(scoreJob).sort((a, b) => b.score - a.score);
+  const topJobs = results.slice(0, 3);
+  const topJobTitles = new Set(topJobs.map(j => j.title));
+  const sharedSkillSet = new Set();
+  topJobs.forEach(j => j.shared.forEach(s => sharedSkillSet.add(s)));
+
+  // Highlight top job nodes
+  node.select("circle.node-job")
+    .classed("highlight", d => topJobTitles.has(d.id) && userSkills.size > 0);
+
+  // Highlight shared edges
+  link.classed("active", d => {
+    const sourceId = typeof d.source === "object" ? d.source.id : d.source;
+    const targetId = typeof d.target === "object" ? d.target.id : d.target;
+    return topJobTitles.has(sourceId) && sharedSkillSet.has(targetId);
+  });
+
+  // Selected skills tags
+  document.getElementById("count-label").textContent = userSkills.size;
+  const tagBox = document.getElementById("selected-skills");
+  if (userSkills.size === 0) {
+    tagBox.innerHTML = '<span class="empty-state">click skill nodes in the graph →</span>';
+  } else {
+    tagBox.innerHTML = "";
+    [...userSkills].forEach(s => {
+      const tag = document.createElement("span");
+      tag.className = "skill-tag";
+      tag.textContent = s + " ×";
+      tag.onclick = () => { userSkills.delete(s); render(); };
+      tagBox.appendChild(tag);
+    });
+  }
+
+  // Job cards
+  const jobBox = document.getElementById("job-results");
+  jobBox.innerHTML = "";
+  results.forEach((j, i) => {
+    const pct = Math.round(j.score * 100);
+    const card = document.createElement("div");
+    card.className = "job-card" + (i < 3 && userSkills.size > 0 ? " top" : "");
+    const explain = userSkills.size === 0
+      ? `Demand confidence ${Math.round(j.confidence * 100)}%. Select skills to score.`
+      : j.shared.length === 0
+        ? `No shared skills yet. Build from: ${j.missing.slice(0, 3).join(", ")}${j.missing.length > 3 ? "…" : ""}.`
+        : `${j.shared.length}/${j.requires.length} required skills shared · demand ${Math.round(j.confidence * 100)}%${j.missing.length > 0 ? ` · gaps: ${j.missing.join(", ")}` : " · full match"}.`;
+    card.innerHTML = `
+      <div class="job-head">
+        <div><span class="job-rank">${String(i + 1).padStart(2, "0")}</span><span class="job-title">${j.title}</span></div>
+        <span class="job-score">${pct}<span style="font-size:12px;color:var(--ink-faint);">%</span></span>
+      </div>
+      <div class="job-explain">${explain}</div>
+      ${j.shared.length > 0 ? `<div class="job-shared">→ ${j.shared.join(" · ")}</div>` : ""}
+      <div class="job-bar"><div class="job-bar-fill" style="width: ${pct}%;"></div></div>
+    `;
+    card.onclick = () => {
+      const jobNode = nodes.find(n => n.id === j.title);
+      if (jobNode) {
+        jobNode.fx = width / 2;
+        jobNode.fy = height / 2;
+        simulation.alpha(0.5).restart();
+        setTimeout(() => { jobNode.fx = null; jobNode.fy = null; }, 1500);
+      }
+    };
+    jobBox.appendChild(card);
+  });
+
+  // Skill recommendations
+  const recBox = document.getElementById("skill-recs");
+  recBox.innerHTML = "";
+  if (userSkills.size === 0) {
+    recBox.innerHTML = '<div class="empty-state">Select skills first.</div>';
+    return;
+  }
+  const skillScores = {};
+  topJobs.forEach(j => j.missing.forEach(m => {
+    if (!skillScores[m]) skillScores[m] = { count: 0, jobs: [] };
+    skillScores[m].count++;
+    skillScores[m].jobs.push(j.title);
+  }));
+  const recs = Object.entries(skillScores).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
+  if (recs.length === 0) {
+    recBox.innerHTML = '<div class="empty-state">No gaps in your top 3 — you\'re fully qualified.</div>';
+    return;
+  }
+  recs.forEach(([skill, data]) => {
+    const row = document.createElement("div");
+    row.className = "rec-row";
+    row.innerHTML = `
+      <div>
+        <div class="rec-skill">${skill}</div>
+        <div class="rec-unlock">unlocks ${data.jobs.join(" · ")}</div>
+      </div>
+      <div class="rec-count">${data.count}/3</div>
+    `;
+    row.onclick = () => { userSkills.add(skill); render(); };
+    recBox.appendChild(row);
+  });
+}
+
+document.getElementById("reset-btn").onclick = () => { userSkills.clear(); render(); };
+document.getElementById("demo-btn").onclick = () => {
+  userSkills.clear();
+  ["Python", "SQL", "Statistics", "Data Viz"].forEach(s => userSkills.add(s));
+  render();
+};
+
+render();
+</script>
+</body>
+</html>
